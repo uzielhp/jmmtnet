@@ -3,5 +3,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Cultura invariante: números con punto decimal y sin dependencia de ICU -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 </Project>

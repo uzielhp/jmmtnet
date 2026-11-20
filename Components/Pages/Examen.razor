@@ -1,0 +1,309 @@
+@page "/Examen/{Semestre}"
+@inject AppsScriptService Script
+@inject SesionStore Sesiones
+@inject ClienteActual Cliente
+@inject EstadoUi Ui
+@inject NavigationManager Nav
+@inject IWebHostEnvironment Env
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>Examen Semestre @NumSemestre</PageTitle>
+
+<div class="progress position-fixed start-0 w-100" role="progressbar" aria-label="Progreso del examen"
+     aria-valuenow="@Porcentaje" aria-valuemin="0" aria-valuemax="100"
+     style="top: 50px; height: 2px; z-index: 1029;">
+  <div class="progress-bar" style="width: @(Porcentaje)%; background-color: var(--bg-titulo);"></div>
+</div>
+
+<div class="container">
+  <div class="text-center">
+    <h1>Examen Semestre @NumSemestre</h1>
+    <p>Por favor, completa tus datos y responde las preguntas.</p>
+  </div>
+
+  @if (cargando)
+  {
+    <div class="text-center my-4"><span class="spinner-border" aria-hidden="true"></span></div>
+  }
+
+  <MensajeChip Texto="@error" />
+
+  @if (yaEnviado)
+  {
+    <MensajeChip Texto="@MensajeExito" />
+  }
+
+  @if (preguntas.Count > 0)
+  {
+    <form @onsubmit="EnviarAsync">
+      <fieldset disabled="@(enviando || yaEnviado)">
+        <div class="container border rounded p-3 mt-3">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="form-floating">
+                <label for="grupo">Grupo *</label>
+                <select class="form-control" required id="grupo" @bind="grupo">
+                  <option value="" disabled></option>
+                  @foreach (var g in Grupos)
+                  {
+                    <option value="@g">@g</option>
+                  }
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-floating">
+                <label for="nombres">Nombre(s) *</label>
+                <input type="text" class="form-control" id="nombres" required placeholder="Ej. María Fernanda"
+                       @bind="nombres" @bind:event="oninput">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-floating">
+                <label for="apellidos">Apellidos *</label>
+                <input type="text" class="form-control" id="apellidos" required placeholder="Ej. Pérez Gómez"
+                       @bind="apellidos" @bind:event="oninput">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="container border rounded p-3 mt-3">
+          <h5 class="pb-2 text-center" style="color: var(--bg-titulo); font-weight: bold;">
+            <i class="bi bi-patch-question-fill"></i> Preguntas
+          </h5>
+
+          @foreach (var img in imagenes)
+          {
+            <img src="@img" class="img-fluid w-100 rounded shadow-sm mb-3" alt="Imagen del examen">
+          }
+
+          @foreach (var p in preguntas)
+          {
+            var num = p.Numero;
+            <div class="py-4 border-bottom">
+              <h5 class="d-flex gap-3 align-items-start">
+                <span class="chip justify-content-center flex-shrink-0 rounded-1 m-0"
+                      style="background-color: var(--bg-titulo); color: black; width: 1.2rem; height: 1.1rem !important; min-height: 0 !important; padding: 2px 0 !important; line-height: 1.1;">
+                  @num
+                </span>
+                <span>@p.Texto</span>
+              </h5>
+              <div class="d-flex gap-3">
+                <span class="flex-shrink-0" style="width: 1.75rem;" aria-hidden="true"></span>
+                <div class="form-group d-flex flex-wrap align-items-center gap-4" role="radiogroup">
+                  @for (var k = 0; k < p.Opciones.Count; k++)
+                  {
+                    var opcion = p.Opciones[k];
+                    var id = $"p{num}_o{k + 1}";
+                    <div class="form-field">
+                      <input class="radio" type="radio" name="pregunta@(num)" id="@id" value="@opcion" required
+                             checked="@(respuestas.GetValueOrDefault(num) == opcion)"
+                             @onchange="() => Responder(num, opcion)" />
+                      <label for="@id">@opcion</label>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="mt-3"><MensajeChip Texto="@errorEnvio" /></div>
+
+        <button class="btn-solid theme-primary w-100 p-3 mt-3" type="submit">
+          @if (enviando)
+          {
+            <span class="spinner-border" aria-hidden="true"></span>
+            <text> Enviando examen...</text>
+          }
+          else if (yaEnviado)
+          {
+            <text>Examen enviado</text>
+          }
+          else
+          {
+            <text>Enviar examen</text>
+          }
+        </button>
+      </fieldset>
+    </form>
+  }
+</div>
+
+@code {
+    private const string MensajeExito = "Tus respuestas se han enviado";
+    private static readonly string[] Grupos =
+        ["101M", "102M", "104V", "301M", "302M", "301V", "302V", "501M", "502M", "501V", "502V"];
+
+    [Parameter] public string Semestre { get; set; } = "";
+
+    private string clave = "";                       // "s100" … "s600"
+    private int cargaId;                             // descarta cargas obsoletas si se cambia de semestre
+    private bool cargando, yaEnviado, enviando;
+    private string? error, errorEnvio;
+    private string grupo = "", nombres = "", apellidos = "";
+
+    private readonly List<PreguntaExamen> preguntas = new();
+    private readonly List<string> imagenes = new();
+    private readonly Dictionary<int, string> correctas = new();   // se quedan en el servidor, nunca viajan al navegador
+    private readonly Dictionary<int, string> respuestas = new();
+
+    private int NumSemestre => clave.Length > 1 ? clave[1] - '0' : 0;
+
+    private int Porcentaje
+    {
+        get
+        {
+            if (preguntas.Count == 0) return 0;
+            var total = 3 + preguntas.Count;
+            var hechos = (grupo != "" ? 1 : 0)
+                       + (!string.IsNullOrWhiteSpace(nombres) ? 1 : 0)
+                       + (!string.IsNullOrWhiteSpace(apellidos) ? 1 : 0)
+                       + respuestas.Count;
+            return (int)Math.Round(100.0 * hechos / total);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var nueva = Semestre.ToLowerInvariant();
+        if (nueva == clave) return;
+        clave = nueva;
+
+        // Blazor no admite regex en rutas: se valida aquí (s100 … s600)
+        if (clave is not ['s', >= '1' and <= '6', '0', '0'])
+        {
+            Nav.NavigateTo("/", replace: true);
+            return;
+        }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var id = ++cargaId;
+        preguntas.Clear(); imagenes.Clear(); correctas.Clear(); respuestas.Clear();
+        grupo = nombres = apellidos = "";
+        error = errorEnvio = null;
+        yaEnviado = false;
+        cargando = true;
+
+        try
+        {
+            var cfg = await Script.GetConfigAsync();
+            if (id != cargaId) return;
+            if (cfg is null) { error = "Error al conectarse Servidor"; return; }
+            if (!cfg.Menu) { Nav.NavigateTo("/", replace: true); return; }
+
+            var hoja = cfg.HojaDe(clave);
+            if (string.IsNullOrWhiteSpace(hoja)) { error = "Error al conectarse Hoja Semestre"; return; }
+
+            var filas = await Script.GetExamenAsync(hoja);
+            if (id != cargaId) return;
+            if (filas is null) { error = "Error al conectarse Hoja Semestre"; return; }
+
+            for (var i = 1; i <= cfg.Imagenes; i++)
+                if (File.Exists(Path.Combine(Env.WebRootPath, "imgs", "examen", $"{i}.jpg")))
+                    imagenes.Add($"imgs/examen/{i}.jpg");
+
+            var inicio = filas.Count > 0 && filas[0].Count > 0 &&
+                         filas[0][0].Contains("pregunta", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+            var n = 0;
+            for (var i = inicio; i < filas.Count; i++)
+            {
+                var fila = filas[i];
+                if (fila.Count == 0 || string.IsNullOrWhiteSpace(fila[0])) continue;
+                n++;
+
+                if (fila.Count > 1 && !string.IsNullOrWhiteSpace(fila[1]))
+                    correctas[n] = fila[1].Trim().ToLowerInvariant();
+
+                var opciones = fila.Skip(2).Where(o => !string.IsNullOrWhiteSpace(o)).ToArray();
+                Random.Shared.Shuffle(opciones);
+                preguntas.Add(new PreguntaExamen { Numero = n, Texto = fila[0], Opciones = opciones.ToList() });
+            }
+
+            if (Sesiones.ExamenEnviado(Cliente.Id, clave))
+            {
+                yaEnviado = true;
+                var guardadas = Sesiones.ObtenerRespuestasExamen(Cliente.Id, clave);
+                if (guardadas is not null)
+                {
+                    grupo = guardadas.Grupo;
+                    nombres = guardadas.Nombres;
+                    apellidos = guardadas.Apellidos;
+                    foreach (var (numero, opcion) in guardadas.Respuestas)
+                        respuestas[numero] = opcion;
+                }
+            }
+
+            if (preguntas.Count == 0) error = "Error al cargar Preguntas (No hay ninguna)";
+        }
+        finally
+        {
+            if (id == cargaId) cargando = false;
+        }
+    }
+
+    private void Responder(int numero, string opcion) => respuestas[numero] = opcion;
+
+    private async Task EnviarAsync()
+    {
+        if (enviando || yaEnviado) return;
+        errorEnvio = null;
+
+        if (string.IsNullOrWhiteSpace(grupo) || string.IsNullOrWhiteSpace(nombres) ||
+            string.IsNullOrWhiteSpace(apellidos) || preguntas.Any(p => !respuestas.ContainsKey(p.Numero)))
+        {
+            errorEnvio = "Completa tus datos y responde todas las preguntas.";
+            return;
+        }
+
+        enviando = true;
+        Ui.EstablecerCargando(true);   // logo girando mientras se envía
+        var reservado = false;
+        try
+        {
+            var cfg = await Script.GetConfigAsync();
+            if (cfg is null || !cfg.Menu) { errorEnvio = "Error al conectarse Servidor"; return; }
+
+            var hoja = cfg.HojaDe(clave);
+            if (string.IsNullOrWhiteSpace(hoja)) { errorEnvio = "Error al conectarse Hoja Semestre"; return; }
+
+            // Reserva atómica: impide doble envío desde dos pestañas
+            if (!Sesiones.TryMarcarEnviado(Cliente.Id, clave)) { errorEnvio = "Este examen ya fue enviado."; return; }
+            reservado = true;
+
+            var datos = new Dictionary<string, string>
+            {
+                ["grupo"] = grupo.Trim(),
+                ["nombres"] = nombres.Trim(),
+                ["apellidos"] = apellidos.Trim()
+            };
+            foreach (var p in preguntas) datos[$"pregunta{p.Numero}"] = respuestas[p.Numero];
+
+            var aciertos = 0;
+            foreach (var (num, correcta) in correctas)
+            {
+                var ok = respuestas[num].Trim().ToLowerInvariant() == correcta;
+                if (ok) aciertos++;
+                datos[$"eval_pregunta{num}"] = ok ? "correcta" : "incorrecta";
+            }
+            datos["aciertos"] = aciertos.ToString();
+
+            if (!await Script.EnviarExamenAsync(hoja, datos)) { errorEnvio = "Error al enviar Respuestas"; return; }
+
+            reservado = false;   // envío confirmado: la marca se conserva
+            Sesiones.GuardarRespuestasExamen(Cliente.Id, clave, grupo, nombres, apellidos, respuestas);
+            yaEnviado = true;
+        }
+        finally
+        {
+            if (reservado) Sesiones.QuitarEnviado(Cliente.Id, clave);   // falló: puede reintentar
+            enviando = false;
+            Ui.EstablecerCargando(false);
+        }
+    }
+}

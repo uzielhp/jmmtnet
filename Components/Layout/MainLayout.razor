@@ -1,0 +1,116 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AppsScriptService Script
+@inject EstadoUi Ui
+@inject NavigationManager Nav
+
+@* Cierra el menú al hacer clic fuera (lo que antes hacía bootstrap.js) *@
+@if (menuAbierto)
+{
+    <div class="menu-fondo" @onclick="CerrarMenu"></div>
+}
+
+<nav class="fixed-top d-flex align-items-center gap-2 justify-content-between bg-black" style="height: 50px; padding: 0 5px;">
+  <button class="nav-link d-inline-flex gap-2 bg-transparent border-0" type="button"
+          aria-haspopup="true" aria-expanded="@(menuAbierto ? "true" : "false")" @onclick="AlternarMenu">
+    <div class="contenedor-logo @(Ui.Cargando ? "is-loading" : null)">
+      <span class="d-inline-flex align-items-center hover-grupo py-1 rounded">
+        <i class="bi bi-grid-3x3-gap-fill" style="padding-right: 5px"></i>
+        <img class="logo" src="imgs/logo.png" alt="Logo" style="height: 30px; width: auto; padding-right: 5px">
+      </span>
+    </div>
+  </button>
+
+  <div class="menu menu-principal @(menuAbierto ? "show" : null)" @onclick="CerrarMenu">
+    <NavLink class="menu-item" href="" Match="NavLinkMatch.All">Inicio</NavLink>
+    <div class="submenu @(submenuAbierto ? "show" : null)">
+      <button class="menu-item" type="button" aria-expanded="@(submenuAbierto ? "true" : "false")"
+              @onclick="AlternarSubmenu" @onclick:stopPropagation="true">Cultura Digital 1</button>
+      <div class="menu @(submenuAbierto ? "show" : null)">
+        <NavLink class="menu-item" href="Actividades/Act10">Act Contaminación digital</NavLink>
+      </div>
+    </div>
+    @if (menuExamen)
+    {
+        <hr class="menu-divider">
+        @for (var i = 1; i <= 6; i++)
+        {
+            <NavLink class="menu-item" href="@($"Examen/s{i}00")">Examen Semestre @i</NavLink>
+        }
+    }
+  </div>
+
+  <a href="Admin"><img src="imgs/adm.png" alt="Admin" height="35"></a>
+</nav>
+
+<main>
+    @Body
+</main>
+
+@if (errorServidor)
+{
+    <div class="text-center py-2 position-fixed bottom-0 start-0 w-100 text-white fw-medium shadow"
+         style="background-color: var(--bg-titulo); z-index: 1060;">Error al conectarse Servidor</div>
+}
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocurrió un error inesperado. <a href="" class="reload">Recargar</a>
+</div>
+
+@code {
+    private bool menuAbierto, submenuAbierto, menuExamen, errorServidor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += AlCambiarUbicacion;
+        Ui.Cambio += AlCambiarEstado;
+        Ui.ConfigCambiada += AlCambiarConfig;
+        await CargarConfigAsync();
+    }
+
+    private async Task CargarConfigAsync()
+    {
+        var cfg = await Script.GetConfigAsync();   // con caché: no golpea Apps Script cada vez
+        menuExamen = cfg?.Menu == true;
+        errorServidor = cfg is null;
+    }
+
+    private async Task AlternarMenu()
+    {
+        menuAbierto = !menuAbierto;
+        if (!menuAbierto) { submenuAbierto = false; return; }
+        await CargarConfigAsync();
+    }
+
+    private void AlternarSubmenu() => submenuAbierto = !submenuAbierto;
+
+    private void CerrarMenu()
+    {
+        menuAbierto = false;
+        submenuAbierto = false;
+    }
+
+    private void AlCambiarUbicacion(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(async () =>
+        {
+            CerrarMenu();
+            await CargarConfigAsync();
+            StateHasChanged();
+        });
+
+    private void AlCambiarEstado() => _ = InvokeAsync(StateHasChanged);
+
+    private void AlCambiarConfig() =>
+        _ = InvokeAsync(async () =>
+        {
+            await CargarConfigAsync();
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= AlCambiarUbicacion;
+        Ui.Cambio -= AlCambiarEstado;
+        Ui.ConfigCambiada -= AlCambiarConfig;
+    }
+}

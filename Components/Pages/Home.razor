@@ -1,0 +1,19 @@
+@page "/"
+@inject GaleriaService Galeria
+
+<PageTitle>COBACH JMMT</PageTitle>
+
+<div class="masonry-grid">
+  @foreach (var ruta in imagenes)
+  {
+    <div class="masonry-item">
+      <img src="@ruta" loading="lazy" alt="Fotografía escolar @Path.GetFileNameWithoutExtension(ruta)">
+    </div>
+  }
+</div>
+
+@code {
+    private string[] imagenes = [];
+
+    protected override void OnInitialized() => imagenes = Galeria.Aleatorias();
+}

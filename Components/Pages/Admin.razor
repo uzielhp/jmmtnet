@@ -1,0 +1,181 @@
+@page "/Admin"
+@using System.Security.Cryptography
+@using System.Text
+@inject AppsScriptService Script
+@inject SesionStore Sesiones
+@inject ClienteActual Cliente
+@inject EstadoUi Ui
+@inject NavigationManager Nav
+
+<PageTitle>Administración</PageTitle>
+
+<div class="container" style="max-width: 720px;">
+  <h3 class="text-center mb-3" style="color: var(--bg-titulo);">Administración</h3>
+
+  @if (!string.IsNullOrEmpty(mensaje))
+  {
+    <div class="alert @(exito ? "theme-success" : "theme-danger") mb-3" role="status"><div>@mensaje</div></div>
+  }
+
+  @if (!autenticado)
+  {
+    <form class="border rounded p-3" autocomplete="off" @onsubmit="LoginAsync">
+      <label for="contra" class="col-form-label">Contraseña:</label>
+      <input @ref="campoContra" type="password" id="contra" autocomplete="off" required
+             class="form-control @(errorLogin is null ? null : "is-invalid")"
+             @bind="contra" @bind:event="oninput" />
+      @if (errorLogin is not null)
+      {
+        <div class="invalid-feedback">@errorLogin</div>
+      }
+      <button type="submit" class="btn-solid theme-primary mt-3" disabled="@procesando">Entrar</button>
+    </form>
+  }
+  else if (cargado)
+  {
+    <form class="border rounded p-3" autocomplete="off" @onsubmit="GuardarAsync">
+      @for (var i = 1; i <= Nombres.Length; i++)
+      {
+        var n = i;
+        <div class="row mb-3">
+          <label class="sm:col-2 col-form-label" for="s@(n)00">@Nombres[n - 1]</label>
+          <div class="sm:col-10">
+            <input class="form-control" id="s@(n)00" autocomplete="off" @bind="hojas[n]" @bind:event="oninput" />
+          </div>
+        </div>
+      }
+
+      <div class="form-field mb-3">
+        <input type="checkbox" class="check" id="menu" @bind="menuExamen" />
+        <label for="menu">Menu Examen</label>
+      </div>
+      <button type="submit" class="btn-solid theme-primary" disabled="@procesando">Guardar</button>
+    </form>
+
+    <div class="mt-3 text-end">
+      <button type="button" class="btn-outline theme-secondary btn-sm" @onclick="Salir">Cerrar sesión</button>
+    </div>
+  }
+</div>
+
+@code {
+    private static readonly string[] Nombres = ["Primero", "Segundo", "Tercero", "Cuarto", "Quinto", "Sexto"];
+
+    private ElementReference campoContra;
+    private readonly Dictionary<int, string> hojas = Enumerable.Range(1, 6).ToDictionary(i => i, _ => "");
+    private ConfigAdmin? cfgActual;
+    private string contra = "";
+    private string? errorLogin, mensaje;
+    private bool autenticado, cargado, exito, procesando, menuExamen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        autenticado = Sesiones.EsAdmin(Cliente.Id);
+        if (autenticado) await CargarFormularioAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !autenticado)
+        {
+            try { await campoContra.FocusAsync(); } catch { /* el foco es solo comodidad */ }
+        }
+    }
+
+    private async Task CargarFormularioAsync()
+    {
+        var cfg = await Script.GetConfigAsync();
+        if (cfg is null)
+        {
+            // No se muestra el formulario: guardar en blanco borraría las hojas configuradas
+            exito = false;
+            mensaje = "Error al conectarse Servidor";
+            cargado = false;
+            return;
+        }
+        cfgActual = cfg;
+        for (var i = 1; i <= 6; i++) hojas[i] = cfg.Hoja(i);
+        menuExamen = cfg.Menu;
+        cargado = true;
+    }
+
+    private async Task LoginAsync()
+    {
+        if (procesando) return;
+        errorLogin = null;
+        mensaje = null;
+
+        if (Sesiones.LoginBloqueado(Cliente.Id))
+        {
+            errorLogin = "Demasiados intentos. Espera un minuto.";
+            return;
+        }
+
+        procesando = true;
+        try
+        {
+            var cfg = await Script.GetConfigAsync();
+            if (cfg is null) { errorLogin = "Error al conectarse Servidor"; return; }
+
+            if (Coincide(contra, cfg.Contra))
+            {
+                Sesiones.EntrarAdmin(Cliente.Id);
+                Sesiones.LimpiarFallos(Cliente.Id);
+                contra = "";
+                autenticado = Sesiones.EsAdmin(Cliente.Id);
+                if (autenticado) await CargarFormularioAsync();
+                else errorLogin = "No se pudo iniciar la sesión.";
+            }
+            else
+            {
+                Sesiones.RegistrarFallo(Cliente.Id);
+                errorLogin = "Por favor, escriba la contraseña correcta.";
+            }
+        }
+        finally { procesando = false; }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (procesando) return;
+        if (!Sesiones.EsAdmin(Cliente.Id)) { autenticado = false; return; }
+
+        procesando = true;
+        mensaje = null;
+        try
+        {
+            var nueva = (cfgActual ?? new ConfigAdmin()) with
+            {
+                S100 = hojas[1].Trim(), S200 = hojas[2].Trim(), S300 = hojas[3].Trim(),
+                S400 = hojas[4].Trim(), S500 = hojas[5].Trim(), S600 = hojas[6].Trim(),
+                Menu = menuExamen
+            };
+
+            exito = await Script.GuardarConfigAsync(nueva);
+            mensaje = exito ? "Configuraciones guardadas" : "Error al guardar Información";
+
+            if (exito)
+            {
+                await CargarFormularioAsync();   // muestra lo realmente guardado
+                if (cargado) mensaje = "Configuraciones guardadas";
+                Ui.NotificarConfig();            // el menú del layout se actualiza al instante
+            }
+        }
+        finally { procesando = false; }
+    }
+
+    private void Salir()
+    {
+        Sesiones.SalirAdmin(Cliente.Id);
+        Nav.NavigateTo("/");
+    }
+
+    // Comparación en tiempo constante (hash para que la longitud tampoco se filtre)
+    private static bool Coincide(string? ingresada, string real)
+    {
+        if (string.IsNullOrEmpty(real)) return false;
+        var a = SHA256.HashData(Encoding.UTF8.GetBytes(ingresada ?? ""));
+        var b = SHA256.HashData(Encoding.UTF8.GetBytes(real));
+        return CryptographicOperations.FixedTimeEquals(a, b);
+    }
+}

@@ -1,0 +1,21 @@
+@inject ClienteActual Cliente
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="ruta">
+        <RouteView RouteData="ruta" DefaultLayout="typeof(MainLayout)" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(MainLayout)">
+            <div class="container text-center">
+                <h3>Página no encontrada</h3>
+                <p>La dirección que buscas no existe. <a href="/">Volver al inicio</a></p>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    [Parameter] public string ClienteId { get; set; } = "";
+
+    protected override void OnInitialized() => Cliente.Id = ClienteId;
+}

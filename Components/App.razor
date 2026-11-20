@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>COBACH JMMT</title>
+    <link rel="icon" type="image/png" href="imgs/favicon.png" />
+    <link rel="stylesheet" href="css/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="css/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/principal.css" />
+    <HeadOutlet @rendermode="SinPrerender" />
+</head>
+<body>
+    <Routes @rendermode="SinPrerender" ClienteId="@ClienteId" />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>
+
+@code {
+    // Sin prerender: el circuito carga una sola vez (evita doble consulta y doble barajado de preguntas)
+    private static readonly IComponentRenderMode SinPrerender = new InteractiveServerRenderMode(prerender: false);
+
+    [CascadingParameter] private HttpContext? Http { get; set; }
+
+    private string ClienteId => Http?.Items["cid"] as string ?? "";
+}

@@ -1,0 +1,114 @@
+@page "/Actividades/Act10"
+@using System.Globalization
+
+<PageTitle>Contaminación digital</PageTitle>
+
+<div class="container text-center">
+  <div class="row">
+    <div class="col-12">
+      <h3>El Peso Invisible de tu Internet</h3>
+      <p>¿Sabías que el internet contamina? Todo lo que hacemos en línea requiere servidores físicos que consumen
+      enormes cantidades de electricidad y agua a nivel mundial.</p>
+    </div>
+  </div>
+
+  <div class="row row-cols-1 md:row-cols-3 g-3 mb-3">
+    <div class="col"><div class="border rounded h-100 p-3">
+      <i class="bi bi-envelope-paper-fill h1" style="color: var(--bg-titulo);"></i>
+      <h4 style="color: var(--bg-titulo);">Correos Olvidados</h4>
+      <p class="mb-0">Esos boletines y correos antiguos que nunca borras ocupan espacio en servidores que están encendidos día y noche. ¡Borrarlos es como apagar un foco que nadie usa!</p>
+    </div></div>
+    <div class="col"><div class="border rounded h-100 p-3">
+      <i class="bi bi-play-btn-fill h1" style="color: var(--bg-titulo);"></i>
+      <h4 style="color: var(--bg-titulo);">Streaming y Redes</h4>
+      <p class="mb-0">Ver Netflix, YouTube o deslizar horas en TikTok es lo que más contamina. El video es muy "pesado" y moverlo por la red requiere mucha energía.</p>
+    </div></div>
+    <div class="col"><div class="border rounded h-100 p-3">
+      <i class="bi bi-cloud-arrow-up-fill h1" style="color: var(--bg-titulo);"></i>
+      <h4 style="color: var(--bg-titulo);">La Nube Infinita</h4>
+      <p class="mb-0">Google Drive, iCloud... Guardamos fotos borrosas "por si acaso". Ese almacenamiento infinito requiere discos duros reales consumiendo luz real.</p>
+    </div></div>
+  </div>
+
+  <div class="row row-cols-1 md:row-cols-2 g-3 mb-3">
+    <div class="col">
+      <div class="border rounded p-3 h-100 d-flex flex-column justify-content-around">
+        <div class="d-flex justify-content-between align-items-center">
+          <label for="emails" class="fw-medium"><i class="bi bi-envelope me-1"></i> Correos inútiles</label>
+          <span class="badge border">@emails correos</span>
+        </div>
+        <div class="form-range" style="@Relleno(emails, 0, 10000)">
+          <input type="range" class="form-range-input" id="emails" min="0" max="10000" step="50"
+                 @bind="emails" @bind:event="oninput" />
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+          <label for="streaming" class="fw-medium"><i class="bi bi-play-circle me-1"></i> Horas de video/día</label>
+          <span class="badge border">@Horas.ToString("0.#", Inv) horas</span>
+        </div>
+        <div class="form-range" style="@Relleno(mediasHoras, 0, 24)">
+          <input type="range" class="form-range-input" id="streaming" min="0" max="24" step="1"
+                 @bind="mediasHoras" @bind:event="oninput" />
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+          <label for="cloud" class="fw-medium"><i class="bi bi-cloud me-1"></i> Gigas en la nube</label>
+          <span class="badge border">@cloud GB</span>
+        </div>
+        <div class="form-range" style="@Relleno(cloud, 0, 500)">
+          <input type="range" class="form-range-input" id="cloud" min="0" max="500" step="5"
+                 @bind="cloud" @bind:event="oninput" />
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="border rounded p-3 h-100 text-center">
+        <i class="bi bi-calculator h1" style="color: var(--bg-titulo);"></i>
+        <h4 style="color: var(--bg-titulo);">Calcula tu Huella Digital Anual</h4>
+        <div class="h6 fw-bold">Tu huella de carbono digital genera:</div>
+        <div class="display-3 fw-bold my-2 text-primary">@TotalCO2.ToString("0.0", Inv)</div>
+        <div class="h6 fw-bold mb-3">kg de CO2 / año</div>
+        <div class="row g-3">
+          <div class="col-6"><div class="border rounded p-3 h-100">
+            <i class="bi bi-tree-fill fs-3 d-block mb-1 text-success"></i>
+            <span class="fs-4 fw-bold d-block">@Arboles</span>
+            <small class="d-block" style="font-size: .75rem;">Árboles necesarios al año</small>
+          </div></div>
+          <div class="col-6"><div class="border rounded p-3 h-100">
+            <i class="bi bi-car-front-fill fs-3 d-block mb-1 text-warning"></i>
+            <span class="fs-4 fw-bold d-block">@KmCoche</span>
+            <small class="d-block" style="font-size: .75rem;">Km en coche de gasolina</small>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row"><div class="col-12">
+    <div class="border rounded p-3 d-flex gap-3 align-items-start">
+      <i class="bi bi-info-circle-fill text-primary fs-3 flex-shrink-0"></i>
+      <p class="m-0" style="text-align: justify;">
+        <strong>¿Qué podemos hacer?</strong> ¡Cosas muy sencillas! Vacía tu papelera de correo de vez en cuando,
+        cancela las suscripciones a boletines que no lees, no dejes videos reproduciéndose de fondo si no los estás
+        viendo, y haz limpieza de las fotos borrosas de tu celular. ¡Pequeños hábitos hacen una gran diferencia mundial!
+      </p>
+    </div>
+  </div></div>
+</div>
+
+@code {
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+
+    private int emails = 500;       // 0 – 10 000
+    private int mediasHoras = 4;    // en pasos de media hora: 4 = 2 h
+    private int cloud = 15;         // 0 – 500 GB
+
+    private double Horas => mediasHoras / 2.0;
+    private double TotalCO2 => emails * 0.01 + Horas * 365 * 0.055 + cloud * 2;
+    private int Arboles => (int)Math.Ceiling(TotalCO2 / 21);
+    private int KmCoche => (int)Math.Round(TotalCO2 / 0.12);
+
+    // Relleno de la barra (antes lo calculaba el componente Range de bootstrap.js)
+    private static string Relleno(int valor, int min, int max) =>
+        "--bs-range-fill:" + ((double)(valor - min) / (max - min)).ToString("0.####", Inv);
+}
