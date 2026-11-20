@@ -1,0 +1,11 @@
+@page
+@model IndexModel
+
+<div class="masonry-grid">
+  @foreach (var ruta in Model.Imagenes)
+  {
+    <div class="masonry-item">
+      <img src="@ruta" loading="lazy" alt="Fotografía escolar @System.IO.Path.GetFileNameWithoutExtension(ruta)">
+    </div>
+  }
+</div>

@@ -1,0 +1,52 @@
+:root {
+  --bg-titulo: #FE6100;
+  --bg-texto: #CBD5E1;
+  --bg-obsidian: #050507;
+}
+
+body {
+  margin: 0;
+  padding-top: 52px;
+  background-color: var(--bg-obsidian);
+}
+html.comprobando-conexion body > :not(#estadoConexion) { display: none !important; }
+.estado-conexion {
+  position: fixed; inset: 0; z-index: 2000; display: grid; place-content: center;
+  gap: 1rem; padding: 1rem; text-align: center; background-color: var(--bg-obsidian);
+}
+.estado-conexion p { margin: 0; }
+p, label, span { color: var(--bg-texto); }
+
+input, select, textarea { scroll-margin-block: 45vh; }
+
+/* Logo con borde giratorio al pasar el mouse */
+.contenedor-logo {
+  position: relative; display: inline-flex; align-items: center;
+  padding: 6px; border-radius: 6px; overflow: hidden; cursor: pointer;
+}
+.contenedor-logo img.logo, .contenedor-logo i { position: relative; z-index: 2; }
+.contenedor-logo:hover .bi-grid-3x3-gap-fill { 
+  color: var(--bg-titulo); transition: color .2s ease-in-out; 
+}
+.contenedor-logo:hover::before,
+.contenedor-logo.is-loading::before {
+  content: ""; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+  background: conic-gradient(transparent, transparent, transparent, var(--bg-titulo));
+  animation: girar-linea 2s linear infinite;
+}
+.contenedor-logo:hover::after,
+.contenedor-logo.is-loading::after {
+  content: ""; position: absolute; inset: 3px; background-color: var(--bg-obsidian); border-radius: 4px;
+}
+@keyframes girar-linea { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Galería: masonry solo con CSS (2 columnas móvil, 3 desde 768px) */
+.masonry-grid { column-count: 2; column-gap: .5rem; padding: .5rem; }
+@media (min-width: 768px) { .masonry-grid { column-count: 3; } }
+.masonry-item {
+  break-inside: avoid; margin-bottom: .5rem; border-radius: .5rem; overflow: hidden;
+  min-height: 120px; background-color: rgba(128, 128, 128, .15);
+  animation: aparecer .5s ease both;
+}
+.masonry-item img { width: 100%; height: auto; display: block; }
+@keyframes aparecer { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }

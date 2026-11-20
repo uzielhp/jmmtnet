@@ -1,0 +1,177 @@
+@page "/Examen/{semestre:regex(^s[1-6]00$)}"
+@model ExamenModel
+
+<div class="container">
+  <div class="text-center">
+    <h1>Examen Semestre @Model.NumSemestre</h1>
+    <p>Por favor, completa tus datos y responde las preguntas.</p>
+  </div>
+
+  @if (Model.Error is not null)
+  {
+    @await Html.PartialAsync("_ErrorMessage", Model.Error);
+  }
+
+  <template id="mensajeExamenTemplate">
+    @await Html.PartialAsync("_ErrorMessage", string.Empty)
+  </template>
+
+  <div id="msgExamen"></div>
+
+  @if (Model.Enviado)
+  {
+    @await Html.PartialAsync("_ErrorMessage", @ExamenModel.MensajeExito);
+  }
+  else if (Model.Preguntas.Count > 0)
+  {
+    <form method="post" id="formExamen">
+      <div class="container border rounded p-3 mt-3">
+        <div class="row g-3">
+          <div class="col-md-6">            
+            <div class="form-floating">
+              <label for="grupo">Grupo *</label>
+              <select class="form-control" required id="grupo" name="grupo">
+                <option value="" disabled selected></option>
+                @foreach (var g in new[] { "101M","102M","104V","301M","302M","301V","302V","501M","502M","501V","502V" }) { <option value="@g">@g</option> }
+              </select>
+            </div>
+          </div>          
+          <div class="col-md-6">
+            <div class="form-floating">
+              <label for="nombres">Nombre(s) *</label>
+              <input type="text" class="form-control" id="nombres" name="nombres" placeholder="Ej. María Fernanda">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-floating">
+              <label for="nombres">Apellidos *</label>
+              <input type="text" class="form-control" id="apellidos" name="apellidos" placeholder="Ej. Pérez Gómez">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="container border rounded p-3 mt-3">
+        <h5 class="pb-2 text-center" style="color: var(--bg-titulo); font-weight: bold;">
+          <i class="bi bi-patch-question-fill"></i> Preguntas
+        </h5>
+
+        @foreach (var img in Model.Imagenes)
+        {
+          <img src="@img" class="img-fluid w-100 rounded shadow-sm mb-3" alt="Imagen del examen">
+        }
+
+        @foreach (var p in Model.Preguntas)
+        {
+          <div class="py-4 border-bottom">
+            <h5 class="d-flex gap-3 align-items-start">              
+              <span class="chip justify-content-center flex-shrink-0 rounded-1 m-0"
+                    style="background-color: var(--bg-titulo); color: black; width: 1.2rem; height: 1.1rem !important; min-height: 0 !important; padding: 2px 0 !important; line-height: 1.1;">
+                @p.Numero
+              </span>
+              <span>@p.Texto</span>
+            </h5>
+            <div class="d-flex gap-3">
+              <span class="flex-shrink-0" style="width: 1.75rem;" aria-hidden="true"></span>
+              <div class="form-group d-flex flex-wrap align-items-center gap-4">
+                @for (var k = 0; k < p.Opciones.Count; k++)
+                {
+                  var id = $"p{p.Numero}_o{k + 1}";
+                  <div class="form-field">
+                    <input class="radio" type="radio" name="pregunta@(p.Numero)" id="@id" value="@p.Opciones[k]" required>
+                    <label for="@id">@p.Opciones[k]</label>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <button class="btn-solid theme-primary w-100 p-3 mt-3" type="submit" id="btnEnviar">Enviar examen</button>
+    </form>
+  }
+</div>
+
+@section Mensajes {
+<script>
+  const form = document.getElementById('formExamen');
+  if (form) {
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      if (!form.checkValidity()) { form.reportValidity(); return; }
+
+      const btn = document.getElementById('btnEnviar');
+      const msg = document.getElementById('msgExamen');      
+      const plantillaMensaje = document.getElementById('mensajeExamenTemplate');
+      const mostrarMensaje = texto => {
+        const contenido = plantillaMensaje.content.cloneNode(true);
+        contenido.querySelector('span').textContent = texto;
+        msg.replaceChildren(contenido);
+      };
+
+      try {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border" aria-hidden="true"></span> Enviando examen...';
+        document.getElementById('logoC')?.classList.add('is-loading');
+
+        const r = await fetch(location.href, {
+          method: 'POST',
+          body: new FormData(form), // incluye el token antiforgery
+          headers: { 'X-Requested-With': 'fetch' }
+        });
+        const d = await r.json();
+
+        mostrarMensaje(d.mensaje);
+
+        if (d.ok) {
+          form.querySelectorAll('input, select, button').forEach(x => x.disabled = true);
+          btn.textContent = 'Examen enviado';
+
+          const barra = document.getElementById('barraProgreso');
+          if (barra) {
+            barra.style.width = '0%';
+            barra.parentElement.setAttribute('aria-valuenow', '0');
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Enviar examen';
+        }
+      } catch {
+        mostrarMensaje('Error al enviar Respuestas');
+        btn.disabled = false;
+        btn.textContent = 'Enviar examen';
+      } finally {
+        document.getElementById('logoC')?.classList.remove('is-loading');
+      }
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  const barra = document.getElementById('barraProgreso');
+  if (form && barra) {
+    const actualizarProgreso = () => {
+      // Cuenta los grupos únicos de campos obligatorios (select, inputs y cada grupo de radios)
+      const nombres = new Set([...form.querySelectorAll('[required]')].map(el => el.name));
+      let completados = 0;
+
+      nombres.forEach(name => {
+        const campos = form.querySelectorAll(`[name="${name}"]`);
+        if (campos[0].type === 'radio') {
+          if ([...campos].some(r => r.checked)) completados++;
+        } else if (campos[0].value.trim() !== '') {
+          completados++;
+        }
+      });
+
+      const pct = Math.round((completados / nombres.size) * 100);
+      barra.style.width = pct + '%';
+      barra.parentElement.setAttribute('aria-valuenow', pct);
+    };
+
+    form.addEventListener('input', actualizarProgreso);
+    form.addEventListener('change', actualizarProgreso);
+    actualizarProgreso(); // Inicia en 0% al cargar el examen
+  }
+</script>
+}
